@@ -1,7 +1,9 @@
 const express = require('express');
 const cors = require('cors');
+const multer = require('multer');
 
 const app = express();
+const upload = multer({ storage: multer.memoryStorage() });
 const PORT = process.env.PORT || 4000;
 
 app.use(cors());
@@ -13,6 +15,21 @@ app.get('/', (_req, res) => {
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });
+});
+
+app.post('/api/tryon', upload.single('userImage'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No user image provided' });
+  }
+
+  const imageBase64 = req.file.buffer.toString('base64');
+  const dataUrl = `data:${req.file.mimetype};base64,${imageBase64}`;
+
+  res.json({
+    status: 'Demo mode',
+    image: dataUrl,
+    dressId: req.body?.dressId,
+  });
 });
 
 app.listen(PORT, () => {
