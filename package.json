@@ -1,0 +1,15 @@
+{
+  "name": "canaanite-dress-tryon-mvp",
+  "private": true,
+  "workspaces": [
+    "app",
+    "server"
+  ],
+  "scripts": {
+    "dev:app": "npm --workspace app run dev",
+    "build:app": "npm --workspace app run build",
+    "start:app": "npm --workspace app run start",
+    "start:server": "npm --workspace server run start",
+    "install:all": "npm install --workspaces"
+  }
+}
