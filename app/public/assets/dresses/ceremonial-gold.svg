@@ -1,0 +1,13 @@
+<svg width="320" height="480" viewBox="0 0 320 480" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="golden" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f9e28a"/>
+      <stop offset="100%" stop-color="#d89b2b"/>
+    </linearGradient>
+  </defs>
+  <rect x="70" y="70" width="180" height="320" rx="28" fill="url(#golden)"/>
+  <path d="M70 200 Q160 140 250 200" fill="#f7f0cd" opacity="0.6"/>
+  <circle cx="160" cy="140" r="36" fill="#b37300"/>
+  <path d="M110 270 L210 270 L190 360 L130 360 Z" fill="#f2c351"/>
+  <text x="50%" y="455" text-anchor="middle" font-family="Georgia" font-size="24" fill="#8a5a00">Ceremonial Gold</text>
+</svg>

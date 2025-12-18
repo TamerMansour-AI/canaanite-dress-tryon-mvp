@@ -6,10 +6,14 @@
     "server"
   ],
   "scripts": {
+    "dev": "concurrently \"npm --workspace server run start\" \"npm --workspace app run dev\"",
     "dev:app": "npm --workspace app run dev",
     "build:app": "npm --workspace app run build",
     "start:app": "npm --workspace app run start",
     "start:server": "npm --workspace server run start",
     "install:all": "npm install --workspaces"
+  },
+  "devDependencies": {
+    "concurrently": "8.2.2"
   }
 }

@@ -1,0 +1,13 @@
+<svg width="320" height="480" viewBox="0 0 320 480" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="fabric" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#4da1ff"/>
+      <stop offset="100%" stop-color="#1c5da3"/>
+    </linearGradient>
+  </defs>
+  <rect x="80" y="60" width="160" height="340" rx="24" fill="url(#fabric)"/>
+  <path d="M80 160 Q160 220 240 160" fill="#cbe3ff" opacity="0.5"/>
+  <circle cx="160" cy="120" r="48" fill="#3b7ac4"/>
+  <rect x="125" y="320" width="70" height="90" rx="16" fill="#173f73" opacity="0.6"/>
+  <text x="50%" y="455" text-anchor="middle" font-family="Arial" font-size="26" fill="#0d2544">Sky Linen</text>
+</svg>
