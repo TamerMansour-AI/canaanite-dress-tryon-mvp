@@ -1,6 +1,6 @@
 # Canaanite Dress Try-On MVP
 
-A minimal end-to-end demo for exploring Canaanite dress reconstructions. The Next.js frontend lets you upload a photo and pick a dress thumbnail; the Express backend currently echoes your upload as a placeholder while AI try-on is under construction.
+A minimal end-to-end demo for exploring Canaanite dress reconstructions. The Next.js frontend lets you upload a photo and pick a dress thumbnail; the Express backend creates a lightweight overlay blend as a placeholder while AI try-on is under construction.
 
 ## Project Structure
 - `app/`: Next.js frontend.
@@ -46,8 +46,12 @@ npm run dev:app
 
 ## API (demo mode)
 `POST /api/tryon`
-- Form fields: `userImage` (file), `dressId` (string)
-- Returns: JSON with `status: "Demo mode"`, the uploaded image as a data URL (`image`), and the echoed `dressId`.
+- Form fields: `userImage` (file), `dressId` (string), `dressSrc` (string, optional), `demoOverlay` ("true" | "false")
+- Returns: JSON with a demo image data URL (`image`), status text, and the echoed dress info.
+
+Demo overlay mode
+- The default request adds a translucent dress overlay plus a subtle vignette and "DEMO" badge.
+- Send `demoOverlay=false` to receive the original upload unchanged.
 
 ## Building the frontend
 ```bash
@@ -56,4 +60,4 @@ npm run build:app
 
 ## Notes
 - Dress thumbnails live in `app/public/assets/dresses` and load from `/assets/dresses` in the app. Supported extensions: `.jpg`, `.jpeg`, `.png`, `.webp`. Add files to that folder and they will automatically appear in the UI.
-- The backend currently returns the uploaded photo unchanged as a demo placeholder.
+- Manual test: run `npm run dev`, upload a photo, select a dress, toggle "Demo overlay mode" on/off, and verify the overlay result looks visually distinct from the original upload and the dress preview matches the selection.
