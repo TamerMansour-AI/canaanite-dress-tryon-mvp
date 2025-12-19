@@ -24,11 +24,14 @@ app.post('/api/tryon', upload.single('userImage'), (req, res) => {
 
   const imageBase64 = req.file.buffer.toString('base64');
   const dataUrl = `data:${req.file.mimetype};base64,${imageBase64}`;
+  const dressId = req.body?.dressId;
+  const dressSrc = req.body?.dressSrc;
 
   res.json({
     status: 'Demo mode',
     image: dataUrl,
-    dressId: req.body?.dressId,
+    dressId,
+    dressSrc,
   });
 });
 

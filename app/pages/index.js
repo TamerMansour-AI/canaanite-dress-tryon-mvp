@@ -1,37 +1,24 @@
+import fs from 'fs';
+import path from 'path';
 import { useMemo, useState } from 'react';
 
-const dressOptions = [
-  {
-    id: 'linen-blue',
-    name: 'Sky Linen',
-    description: 'Soft linen drape with a calming blue palette.',
-    image: '/assets/dresses/linen-blue.svg',
-  },
-  {
-    id: 'ceremonial-gold',
-    name: 'Ceremonial Gold',
-    description: 'Gold embroidered ceremonial wrap.',
-    image: '/assets/dresses/ceremonial-gold.svg',
-  },
-  {
-    id: 'crimson-festival',
-    name: 'Crimson Festival',
-    description: 'Festive crimson layers inspired by seasonal gatherings.',
-    image: '/assets/dresses/crimson-festival.svg',
-  },
-];
-
-export default function Home() {
-  const [selectedDress, setSelectedDress] = useState(dressOptions[0].id);
+export default function Home({ dresses }) {
+  const [selectedDress, setSelectedDress] = useState(() => dresses[0]?.id || '');
   const [userImageFile, setUserImageFile] = useState(null);
   const [userImagePreview, setUserImagePreview] = useState(null);
   const [resultImage, setResultImage] = useState(null);
+  const [resultDress, setResultDress] = useState(null);
   const [statusMessage, setStatusMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const apiBase = useMemo(
     () => process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000',
     []
+  );
+
+  const selectedDressDetails = useMemo(
+    () => dresses.find((dress) => dress.id === selectedDress) || null,
+    [dresses, selectedDress]
   );
 
   const handleFileChange = (event) => {
@@ -52,13 +39,21 @@ export default function Home() {
       return;
     }
 
+    if (!selectedDressDetails) {
+      setStatusMessage('Please select a dress to continue.');
+      return;
+    }
+
     setIsSubmitting(true);
     setStatusMessage('');
 
     try {
       const formData = new FormData();
       formData.append('userImage', userImageFile);
-      formData.append('dressId', selectedDress);
+      formData.append('dressId', selectedDressDetails.id);
+      if (selectedDressDetails.src) {
+        formData.append('dressSrc', selectedDressDetails.src);
+      }
 
       const response = await fetch(`${apiBase}/api/tryon`, {
         method: 'POST',
@@ -72,6 +67,14 @@ export default function Home() {
       const data = await response.json();
       setResultImage(data.image || null);
       setStatusMessage(data.status || 'Demo mode');
+      const dressFromResponse =
+        dresses.find((dress) => dress.id === data.dressId) || selectedDressDetails;
+      setResultDress({
+        id: data.dressId || dressFromResponse?.id || '',
+        src: data.dressSrc || dressFromResponse?.src || '',
+        title: dressFromResponse?.title || 'Selected dress',
+        description: dressFromResponse?.description || '',
+      });
     } catch (error) {
       setStatusMessage(error.message);
     } finally {
@@ -117,32 +120,40 @@ export default function Home() {
 
         <div style={styles.card}>
           <h2 style={styles.cardTitle}>2. Pick a dress</h2>
-          <div style={styles.dressGrid}>
-            {dressOptions.map((dress) => {
-              const isActive = dress.id === selectedDress;
-              return (
-                <button
-                  key={dress.id}
-                  onClick={() => setSelectedDress(dress.id)}
-                  style={{
-                    ...styles.dressButton,
-                    borderColor: isActive ? '#2563eb' : '#d0d7de',
-                    boxShadow: isActive ? '0 0 0 3px rgba(37,99,235,0.2)' : 'none',
-                  }}
-                >
-                  <img
-                    src={dress.image}
-                    alt={dress.name}
-                    style={{ width: '100%', height: 140, objectFit: 'contain' }}
-                  />
-                  <div style={{ textAlign: 'left' }}>
-                    <p style={{ margin: '0.5rem 0 0.25rem', fontWeight: 700 }}>{dress.name}</p>
-                    <p style={{ margin: 0, color: '#556', fontSize: 14 }}>{dress.description}</p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+          {dresses.length === 0 ? (
+            <p style={{ color: '#556' }}>
+              Add dress images to <code>app/public/assets/dresses</code> to see them here.
+            </p>
+          ) : (
+            <div style={styles.dressGrid}>
+              {dresses.map((dress) => {
+                const isActive = dress.id === selectedDress;
+                return (
+                  <button
+                    key={dress.id}
+                    onClick={() => setSelectedDress(dress.id)}
+                    style={{
+                      ...styles.dressButton,
+                      borderColor: isActive ? '#2563eb' : '#d0d7de',
+                      boxShadow: isActive ? '0 0 0 3px rgba(37,99,235,0.2)' : 'none',
+                    }}
+                  >
+                    <div style={styles.thumbnailWrap}>
+                      <img
+                        src={dress.src}
+                        alt={dress.title}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    </div>
+                    <div style={{ textAlign: 'left' }}>
+                      <p style={{ margin: '0.5rem 0 0.25rem', fontWeight: 700 }}>{dress.title}</p>
+                      <p style={{ margin: 0, color: '#556', fontSize: 14 }}>{dress.description}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <div style={styles.card}>
@@ -150,6 +161,21 @@ export default function Home() {
           <p style={{ margin: '0 0 0.5rem', color: '#556' }}>
             The demo sends your photo to the backend and returns it unchanged with a status message.
           </p>
+          {selectedDressDetails && (
+            <div style={styles.selectedDressBox}>
+              <div>
+                <p style={{ margin: 0, fontWeight: 700 }}>Selected dress</p>
+                <p style={{ margin: '0.15rem 0 0', color: '#556' }}>{selectedDressDetails.title}</p>
+              </div>
+              <div style={styles.thumbnailWrapSmall}>
+                <img
+                  src={selectedDressDetails.src}
+                  alt={selectedDressDetails.title}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              </div>
+            </div>
+          )}
           <button
             onClick={handleSubmit}
             style={styles.generateButton}
@@ -161,12 +187,31 @@ export default function Home() {
             <p style={{ marginTop: '0.75rem', fontWeight: 600 }}>{statusMessage}</p>
           )}
           {resultImage && (
-            <div style={{ ...styles.previewBox, marginTop: '1rem' }}>
-              <img
-                src={resultImage}
-                alt="Demo try-on result"
-                style={{ maxWidth: '100%', maxHeight: 240, objectFit: 'contain' }}
-              />
+            <div style={{ ...styles.resultGrid, marginTop: '1rem' }}>
+              <div style={styles.previewBox}>
+                <p style={{ margin: '0 0 0.35rem', fontWeight: 700 }}>Try-on result</p>
+                <img
+                  src={resultImage}
+                  alt="Demo try-on result"
+                  style={{ maxWidth: '100%', maxHeight: 240, objectFit: 'contain' }}
+                />
+              </div>
+              {resultDress?.src && (
+                <div style={styles.previewBox}>
+                  <p style={{ margin: '0 0 0.35rem', fontWeight: 700 }}>Selected dress</p>
+                  <div style={styles.thumbnailWrap}>
+                    <img
+                      src={resultDress.src}
+                      alt={resultDress.title}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
+                  </div>
+                  <p style={{ margin: '0.35rem 0 0.15rem', fontWeight: 600 }}>{resultDress.title}</p>
+                  {resultDress.id && (
+                    <p style={{ margin: 0, color: '#556', fontSize: 14 }}>ID: {resultDress.id}</p>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -247,6 +292,22 @@ const styles = {
     cursor: 'pointer',
     textAlign: 'left',
   },
+  thumbnailWrap: {
+    width: '100%',
+    height: 180,
+    borderRadius: 10,
+    overflow: 'hidden',
+    background: '#f8fafc',
+    border: '1px solid #e2e8f0',
+  },
+  thumbnailWrapSmall: {
+    width: 96,
+    height: 96,
+    borderRadius: 10,
+    overflow: 'hidden',
+    background: '#f8fafc',
+    border: '1px solid #e2e8f0',
+  },
   generateButton: {
     padding: '0.85rem 1.25rem',
     borderRadius: 10,
@@ -257,4 +318,68 @@ const styles = {
     cursor: 'pointer',
     width: '100%',
   },
+  selectedDressBox: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    border: '1px solid #e2e8f0',
+    borderRadius: 10,
+    padding: '0.75rem',
+    marginBottom: '0.75rem',
+    background: '#f8fafc',
+  },
+  resultGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+    gap: '0.75rem',
+  },
 };
+
+function humanizeFilename(id) {
+  const spaced = id
+    .replace(/[-_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return spaced
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+export async function getStaticProps() {
+  const dressesDir = path.join(process.cwd(), 'public', 'assets', 'dresses');
+  const allowedExtensions = new Set(['.jpg', '.jpeg', '.png', '.webp', '.svg']);
+  let dresses = [];
+
+  try {
+    const files = await fs.promises.readdir(dressesDir, { withFileTypes: true });
+    dresses = files
+      .filter((file) => file.isFile())
+      .map((file) => file.name)
+      .filter((name) => {
+        if (name.startsWith('.')) return false;
+        const ext = path.extname(name).toLowerCase();
+        return allowedExtensions.has(ext);
+      })
+      .map((filename) => {
+        const ext = path.extname(filename);
+        const id = path.basename(filename, ext);
+        const title = humanizeFilename(id);
+        return {
+          id,
+          title,
+          description: `Reconstructed dress: ${title}`,
+          src: `/assets/dresses/${filename}`,
+        };
+      });
+  } catch (error) {
+    console.error('Error loading dresses from public/assets/dresses', error);
+  }
+
+  return {
+    props: {
+      dresses,
+    },
+  };
+}
