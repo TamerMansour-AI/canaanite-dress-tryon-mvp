@@ -11,6 +11,7 @@ export default function Home({ dresses }) {
   const [statusMessage, setStatusMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [demoOverlay, setDemoOverlay] = useState(true);
+  const [realMode, setRealMode] = useState(false);
 
   const apiBase = useMemo(
     () => process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000',
@@ -46,7 +47,7 @@ export default function Home({ dresses }) {
     }
 
     setIsSubmitting(true);
-    setStatusMessage('');
+    setStatusMessage(realMode ? 'Requesting real try-on…' : 'Preparing demo…');
 
     try {
       const formData = new FormData();
@@ -56,6 +57,7 @@ export default function Home({ dresses }) {
         formData.append('dressSrc', selectedDressDetails.src);
       }
       formData.append('demoOverlay', demoOverlay ? 'true' : 'false');
+      formData.append('demoMode', realMode ? 'false' : 'true');
 
       const response = await fetch(`${apiBase}/api/tryon`, {
         method: 'POST',
@@ -68,7 +70,7 @@ export default function Home({ dresses }) {
 
       const data = await response.json();
       setResultImage(data.image || null);
-      setStatusMessage(data.status || 'Demo mode');
+      setStatusMessage(data.status || (realMode ? 'Real mode' : 'Demo mode'));
       const dressFromResponse =
         dresses.find((dress) => dress.id === data.dressId) || selectedDressDetails;
       setResultDress({
@@ -88,11 +90,12 @@ export default function Home({ dresses }) {
     <main style={styles.page}>
       <header style={styles.header}>
         <div>
-          <p style={styles.badge}>Demo</p>
+          <p style={styles.badge}>Beta</p>
           <h1 style={{ margin: 0 }}>Canaanite Dress Try-On</h1>
-          <p style={{ margin: '0.25rem 0 0', color: '#445', maxWidth: 640 }}>
-            Upload a photo, choose a reconstructed dress, and generate a demo try-on.
-            This demo echoes back your upload while the AI pipeline is in progress.
+          <p style={{ margin: '0.25rem 0 0', color: '#445', maxWidth: 720 }}>
+            Upload a photo, choose a reconstructed dress, and generate either the demo overlay or
+            a real AI try-on powered by OpenAI GPT Image 1.5 (when an API key is configured). Demo
+            mode remains available as a fallback.
           </p>
         </div>
       </header>
@@ -161,19 +164,37 @@ export default function Home({ dresses }) {
         <div style={styles.card}>
           <h2 style={styles.cardTitle}>3. Generate</h2>
           <p style={{ margin: '0 0 0.5rem', color: '#556' }}>
-            Choose whether to see a lightweight overlay mockup or the raw echo of your upload.
+            Choose real try-on (requires API key) or stay in demo mode. In demo mode you can switch
+            between the overlay mockup and the raw echo of your upload.
           </p>
+          <label style={styles.toggleRow}>
+            <input
+              type="checkbox"
+              checked={realMode}
+              onChange={(e) => setRealMode(e.target.checked)}
+            />
+            <span style={{ marginLeft: '0.5rem', fontWeight: 600 }}>Real try-on (beta)</span>
+            <span style={{ marginLeft: '0.35rem', color: '#556', fontSize: 14 }}>
+              {realMode
+                ? 'Calls GPT Image 1.5 with your photo + the selected dress'
+                : 'Stays in demo overlay/echo mode'}
+            </span>
+          </label>
           <label style={styles.toggleRow}>
             <input
               type="checkbox"
               checked={demoOverlay}
               onChange={(e) => setDemoOverlay(e.target.checked)}
+              disabled={isSubmitting}
             />
             <span style={{ marginLeft: '0.5rem' }}>Demo overlay mode</span>
             <span style={{ marginLeft: '0.35rem', color: '#556', fontSize: 14 }}>
               {demoOverlay ? 'Adds a subtle dress blend + vignette' : 'Returns the original upload'}
             </span>
           </label>
+          <p style={{ margin: '0 0 0.5rem', fontWeight: 600, color: '#111' }}>
+            Active mode: {realMode ? 'Real try-on (beta)' : 'Demo mode'}
+          </p>
           {selectedDressDetails && (
             <div style={styles.selectedDressBox}>
               <div>
@@ -194,7 +215,7 @@ export default function Home({ dresses }) {
             style={styles.generateButton}
             disabled={isSubmitting}
           >
-            {isSubmitting ? 'Generating…' : 'Generate demo'}
+            {isSubmitting ? 'Generating…' : realMode ? 'Generate real try-on' : 'Generate demo'}
           </button>
           {statusMessage && (
             <p style={{ marginTop: '0.75rem', fontWeight: 600 }}>{statusMessage}</p>
