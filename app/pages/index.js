@@ -10,6 +10,7 @@ export default function Home({ dresses }) {
   const [resultDress, setResultDress] = useState(null);
   const [statusMessage, setStatusMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [demoOverlay, setDemoOverlay] = useState(true);
 
   const apiBase = useMemo(
     () => process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000',
@@ -54,6 +55,7 @@ export default function Home({ dresses }) {
       if (selectedDressDetails.src) {
         formData.append('dressSrc', selectedDressDetails.src);
       }
+      formData.append('demoOverlay', demoOverlay ? 'true' : 'false');
 
       const response = await fetch(`${apiBase}/api/tryon`, {
         method: 'POST',
@@ -159,8 +161,19 @@ export default function Home({ dresses }) {
         <div style={styles.card}>
           <h2 style={styles.cardTitle}>3. Generate</h2>
           <p style={{ margin: '0 0 0.5rem', color: '#556' }}>
-            The demo sends your photo to the backend and returns it unchanged with a status message.
+            Choose whether to see a lightweight overlay mockup or the raw echo of your upload.
           </p>
+          <label style={styles.toggleRow}>
+            <input
+              type="checkbox"
+              checked={demoOverlay}
+              onChange={(e) => setDemoOverlay(e.target.checked)}
+            />
+            <span style={{ marginLeft: '0.5rem' }}>Demo overlay mode</span>
+            <span style={{ marginLeft: '0.35rem', color: '#556', fontSize: 14 }}>
+              {demoOverlay ? 'Adds a subtle dress blend + vignette' : 'Returns the original upload'}
+            </span>
+          </label>
           {selectedDressDetails && (
             <div style={styles.selectedDressBox}>
               <div>
@@ -332,6 +345,16 @@ const styles = {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
     gap: '0.75rem',
+  },
+  toggleRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.25rem',
+    padding: '0.5rem 0.65rem',
+    borderRadius: 8,
+    border: '1px solid #e2e8f0',
+    background: '#f8fafc',
+    marginBottom: '0.75rem',
   },
 };
 
