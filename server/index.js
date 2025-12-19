@@ -1,11 +1,16 @@
-const path = require('path');
-const fs = require('fs');
-const dotenv = require('dotenv');
-const express = require('express');
-const cors = require('cors');
-const multer = require('multer');
-const sharp = require('sharp');
-const OpenAI = require('openai');
+import path from 'path';
+import fs from 'fs';
+import dotenv from 'dotenv';
+import express from 'express';
+import cors from 'cors';
+import multer from 'multer';
+import sharp from 'sharp';
+import { OpenAI } from 'openai';
+import { toFile } from 'openai/uploads';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const envPaths = [path.join(__dirname, '.env'), path.join(__dirname, '..', '.env')];
 envPaths.forEach((envPath) => {
@@ -178,10 +183,23 @@ app.post('/api/tryon', upload.single('userImage'), async (req, res) => {
     return res.status(400).json({ error: 'Dress image not found for real try-on', dressId });
   }
 
+  if (!req.file?.buffer?.length) {
+    return res.status(400).json({ error: 'User image missing or empty' });
+  }
+
+  if (!dressBuffer?.length) {
+    return res.status(400).json({ error: 'Dress image is empty', dressId });
+  }
+
   try {
+    const userFile = await toFile(req.file.buffer, req.file.originalname || 'user.png');
+    const dressFilename =
+      (dressSrc && path.basename(dressSrc)) || (dressId ? `${dressId}.png` : 'dress.png');
+    const dressFile = await toFile(dressBuffer, dressFilename);
+
     const response = await openaiClient.images.edit({
       model: 'gpt-image-1.5',
-      image: [req.file.buffer, dressBuffer],
+      image: [userFile, dressFile],
       prompt:
         'Preserve the person’s identity, face, skin tone, and body proportions. ' +
         'Replace clothing only with the selected dress (copy its texture, embroidery, and silhouette). ' +
@@ -193,7 +211,7 @@ app.post('/api/tryon', upload.single('userImage'), async (req, res) => {
     const base64Image = response?.data?.[0]?.b64_json;
 
     if (!base64Image) {
-      return res.status(502).json({ error: 'No image returned from OpenAI', dressId });
+      return res.status(502).json({ ok: false, error: 'No image returned from OpenAI', code: 'no_image' });
     }
 
     return res.json({
@@ -202,10 +220,16 @@ app.post('/api/tryon', upload.single('userImage'), async (req, res) => {
       dressId,
     });
   } catch (error) {
-    console.error('Error calling OpenAI image edit', error);
+    console.error('Error calling OpenAI image edit', {
+      status: error?.status,
+      code: error?.code,
+      message: error?.message,
+      stack: error?.stack,
+    });
     return res.status(502).json({
-      error: 'Failed to generate real try-on with OpenAI',
-      details: error?.message || 'Unknown error',
+      ok: false,
+      error: error?.message || 'Failed to generate real try-on with OpenAI',
+      code: error?.code || error?.status || 'openai_error',
     });
   }
 });
