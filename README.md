@@ -58,6 +58,9 @@ Real try-on (beta)
 - Set `demoMode=false` and configure `OPENAI_API_KEY` to call OpenAI GPT Image 1.5 with the uploaded user photo (first image) and the selected dress (second image).
 - The server returns `{ status: "real", image: <dataURL>, dressId }` on success and falls back to demo behavior when API credentials are absent.
 
+## Real try-on requirements
+Real try-on uses OpenAI gpt-image-1.5; requires `OPENAI_API_KEY` in `server/.env` (local) or GitHub Secrets (deploy).
+
 ## Building the frontend
 ```bash
 npm run build:app
