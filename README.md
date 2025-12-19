@@ -55,5 +55,5 @@ npm run build:app
 ```
 
 ## Notes
-- Dress thumbnails live in `app/public/assets/dresses` and load from `/assets/dresses` in the app. Supported extensions: `.jpg`, `.jpeg`, `.png`, `.webp`, `.svg`. Add files to that folder and they will automatically appear in the UI.
+- Dress thumbnails live in `app/public/assets/dresses` and load from `/assets/dresses` in the app. Supported extensions: `.jpg`, `.jpeg`, `.png`, `.webp`. Add files to that folder and they will automatically appear in the UI.
 - The backend currently returns the uploaded photo unchanged as a demo placeholder.
