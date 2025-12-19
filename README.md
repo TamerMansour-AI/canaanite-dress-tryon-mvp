@@ -12,10 +12,10 @@ A minimal end-to-end demo for exploring Canaanite dress reconstructions. The Nex
 - Node.js 18+ (npm 9+ recommended)
 
 ## Installation
-Install all workspace dependencies from the repository root:
+Install all dependencies from the repository root:
 
 ```bash
-npm install --workspaces
+npm install
 ```
 
 Optionally create a local environment file (not required for the demo):
@@ -55,5 +55,5 @@ npm run build:app
 ```
 
 ## Notes
-- Dress thumbnails live in `app/public/assets/dresses` and load from `/assets/dresses` in the app.
+- Dress thumbnails live in `app/public/assets/dresses` and load from `/assets/dresses` in the app. Supported extensions: `.jpg`, `.jpeg`, `.png`, `.webp`, `.svg`. Add files to that folder and they will automatically appear in the UI.
 - The backend currently returns the uploaded photo unchanged as a demo placeholder.
