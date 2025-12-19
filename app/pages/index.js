@@ -142,7 +142,7 @@ export default function Home({ dresses }) {
                       <img
                         src={dress.src}
                         alt={dress.title}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                       />
                     </div>
                     <div style={{ textAlign: 'left' }}>
@@ -167,14 +167,14 @@ export default function Home({ dresses }) {
                 <p style={{ margin: 0, fontWeight: 700 }}>Selected dress</p>
                 <p style={{ margin: '0.15rem 0 0', color: '#556' }}>{selectedDressDetails.title}</p>
               </div>
-              <div style={styles.thumbnailWrapSmall}>
-                <img
-                  src={selectedDressDetails.src}
-                  alt={selectedDressDetails.title}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
-              </div>
-            </div>
+                  <div style={styles.thumbnailWrapSmall}>
+                    <img
+                      src={selectedDressDetails.src}
+                      alt={selectedDressDetails.title}
+                      style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                    />
+                  </div>
+                </div>
           )}
           <button
             onClick={handleSubmit}
@@ -203,7 +203,7 @@ export default function Home({ dresses }) {
                     <img
                       src={resultDress.src}
                       alt={resultDress.title}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                     />
                   </div>
                   <p style={{ margin: '0.35rem 0 0.15rem', fontWeight: 600 }}>{resultDress.title}</p>
@@ -349,7 +349,7 @@ function humanizeFilename(id) {
 
 export async function getStaticProps() {
   const dressesDir = path.join(process.cwd(), 'public', 'assets', 'dresses');
-  const allowedExtensions = new Set(['.jpg', '.jpeg', '.png', '.webp', '.svg']);
+  const allowedExtensions = new Set(['.jpg', '.jpeg', '.png', '.webp']);
   let dresses = [];
 
   try {
