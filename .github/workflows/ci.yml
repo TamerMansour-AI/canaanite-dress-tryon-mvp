@@ -7,46 +7,17 @@ on:
     branches: [main]
 
 jobs:
-  build:
+  ci:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
-
-      - name: Use Node.js 20
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-
       - name: Install dependencies
         run: npm ci
-
-      - name: Lint or build workspaces
-        run: |
-          if node - <<'EOF'
-const fs = require('fs');
-const path = require('path');
-const root = process.cwd();
-const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-const workspaces = pkg.workspaces || [];
-let hasLint = pkg.scripts && pkg.scripts.lint;
-
-for (const ws of workspaces) {
-  const pkgPath = path.join(root, ws, 'package.json');
-  if (fs.existsSync(pkgPath)) {
-    const wsPkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-    if (wsPkg.scripts && wsPkg.scripts.lint) {
-      hasLint = true;
-      break;
-    }
-  }
-}
-
-process.exit(hasLint ? 0 : 1);
-EOF
-          then
-            npm run lint --workspaces --if-present
-          else
-            npm run build --workspaces --if-present
-          fi
+      - name: Lint (if available)
+        run: npm run lint --workspaces --if-present
+      - name: Build (if available)
+        run: npm run build --workspaces --if-present
