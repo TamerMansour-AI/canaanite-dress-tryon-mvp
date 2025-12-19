@@ -18,7 +18,7 @@ Install all dependencies from the repository root:
 npm install
 ```
 
-Optionally create a local environment file (not required for the demo):
+For real try-on, set your OpenAI key in a local environment file. You can place it at the repository root or inside `server/.env`:
 
 ```bash
 cp .env.example .env
@@ -44,14 +44,19 @@ npm run start:server
 npm run dev:app
 ```
 
-## API (demo mode)
+## API
 `POST /api/tryon`
-- Form fields: `userImage` (file), `dressId` (string), `dressSrc` (string, optional), `demoOverlay` ("true" | "false")
-- Returns: JSON with a demo image data URL (`image`), status text, and the echoed dress info.
+- Form fields: `userImage` (file), `dressId` (string), `dressSrc` (string, optional), `demoOverlay` ("true" | "false"), `demoMode` ("true" | "false")
+- Returns: JSON with a base64 image data URL (`image`), status text, and the echoed dress info.
 
 Demo overlay mode
 - The default request adds a translucent dress overlay plus a subtle vignette and "DEMO" badge.
 - Send `demoOverlay=false` to receive the original upload unchanged.
+- The server automatically stays in demo mode if `demoMode=true` or if `OPENAI_API_KEY` is missing.
+
+Real try-on (beta)
+- Set `demoMode=false` and configure `OPENAI_API_KEY` to call OpenAI GPT Image 1.5 with the uploaded user photo (first image) and the selected dress (second image).
+- The server returns `{ status: "real", image: <dataURL>, dressId }` on success and falls back to demo behavior when API credentials are absent.
 
 ## Building the frontend
 ```bash
@@ -61,3 +66,4 @@ npm run build:app
 ## Notes
 - Dress thumbnails live in `app/public/assets/dresses` and load from `/assets/dresses` in the app. Supported extensions: `.jpg`, `.jpeg`, `.png`, `.webp`. Add files to that folder and they will automatically appear in the UI.
 - Manual test: run `npm run dev`, upload a photo, select a dress, toggle "Demo overlay mode" on/off, and verify the overlay result looks visually distinct from the original upload and the dress preview matches the selection.
+- Real try-on: place your `OPENAI_API_KEY` in `server/.env` or a root `.env`, enable "Real try-on (beta)" in the UI, then submit a photo + dress. The server will call OpenAI GPT Image 1.5 with the user image as the first input and the selected dress as the second. If credentials are missing, the API automatically falls back to demo mode.
