@@ -5,7 +5,7 @@ import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
 import sharp from 'sharp';
-import { OpenAI } from 'openai';
+import OpenAI from 'openai';
 import { toFile } from 'openai/uploads';
 import { fileURLToPath } from 'url';
 
@@ -24,6 +24,8 @@ const upload = multer({ storage: multer.memoryStorage() });
 const PORT = process.env.PORT || 4000;
 const hasOpenAiKey = Boolean(process.env.OPENAI_API_KEY);
 const openaiClient = hasOpenAiKey ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
+const dressesDir = path.resolve(path.join(__dirname, '..', 'app', 'public', 'assets', 'dresses'));
+const allowedDressExtensions = new Set(['.png', '.jpg', '.jpeg', '.webp']);
 
 app.use(cors());
 app.use(express.json());
@@ -38,7 +40,7 @@ app.get('/health', (_req, res) => {
 
 app.post('/api/tryon', upload.single('userImage'), async (req, res) => {
   if (!req.file) {
-    return res.status(400).json({ error: 'No user image provided' });
+    return res.status(400).json({ ok: false, error: 'No user image provided', code: 'missing_user_image' });
   }
 
   const dressId = req.body?.dressId;
@@ -58,24 +60,54 @@ app.post('/api/tryon', upload.single('userImage'), async (req, res) => {
     });
   };
 
+  const isPathInside = (filePath, parentDir) => {
+    const relative = path.relative(parentDir, filePath);
+    return relative && !relative.startsWith('..') && !path.isAbsolute(relative);
+  };
+
   const findDressPathById = () => {
-    if (!dressId) return null;
-    const allowedExtensions = ['.png', '.jpg', '.jpeg', '.webp'];
-    for (const ext of allowedExtensions) {
-      const candidate = path.join(
-        __dirname,
-        '..',
-        'app',
-        'public',
-        'assets',
-        'dresses',
-        `${dressId}${ext}`
-      );
-      if (fs.existsSync(candidate)) {
-        return candidate;
+    if (!dressId) return { path: null };
+    if (!/^[a-zA-Z0-9_-]+$/.test(dressId)) {
+      return { path: null, error: 'Invalid dress id', code: 'invalid_dress_id' };
+    }
+
+    for (const ext of allowedDressExtensions) {
+      const candidate = path.resolve(path.join(dressesDir, `${dressId}${ext}`));
+      if (!isPathInside(candidate, dressesDir)) {
+        return { path: null, error: 'Invalid dress path', code: 'invalid_dress_path' };
+      }
+
+      if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+        return { path: candidate };
       }
     }
-    return null;
+
+    return { path: null };
+  };
+
+  const findDressPathBySrc = () => {
+    if (!dressSrc) return { path: null };
+    if (dressSrc.includes('..') || dressSrc.includes('\\')) {
+      return { path: null, error: 'Invalid dress path', code: 'invalid_dress_path' };
+    }
+
+    const normalizedDressSrc = dressSrc.startsWith('/') ? dressSrc.slice(1) : dressSrc;
+    const normalizedPath = path.normalize(normalizedDressSrc);
+    const candidate = path.resolve(path.join(__dirname, '..', 'app', 'public', normalizedPath));
+
+    if (!isPathInside(candidate, dressesDir)) {
+      return { path: null, error: 'Invalid dress path', code: 'invalid_dress_path' };
+    }
+
+    if (!allowedDressExtensions.has(path.extname(candidate).toLowerCase())) {
+      return { path: null, error: 'Unsupported dress extension', code: 'invalid_dress_ext' };
+    }
+
+    if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+      return { path: candidate };
+    }
+
+    return { path: null };
   };
 
   if (isDemoMode) {
@@ -166,29 +198,35 @@ app.post('/api/tryon', upload.single('userImage'), async (req, res) => {
     }
   }
 
-  const resolvedDressPath = findDressPathById();
+  const resolvedById = findDressPathById();
+  if (resolvedById?.error) {
+    return res.status(400).json({ ok: false, error: resolvedById.error, code: resolvedById.code });
+  }
+
+  const resolvedBySrc = !resolvedById.path ? findDressPathBySrc() : { path: null };
+  if (resolvedBySrc?.error) {
+    return res.status(400).json({ ok: false, error: resolvedBySrc.error, code: resolvedBySrc.code });
+  }
+
+  const resolvedDressPath = resolvedById.path || resolvedBySrc.path;
   let dressBuffer = null;
 
   if (resolvedDressPath && fs.existsSync(resolvedDressPath)) {
     dressBuffer = await fs.promises.readFile(resolvedDressPath);
-  } else if (dressSrc) {
-    const normalizedDressSrc = dressSrc.startsWith('/') ? dressSrc.slice(1) : dressSrc;
-    const normalizedDressPath = path.join(__dirname, '..', 'app', 'public', normalizedDressSrc);
-    if (fs.existsSync(normalizedDressPath)) {
-      dressBuffer = await fs.promises.readFile(normalizedDressPath);
-    }
   }
 
-  if (!dressBuffer) {
-    return res.status(400).json({ error: 'Dress image not found for real try-on', dressId });
+  if (!resolvedDressPath || !dressBuffer) {
+    return res
+      .status(400)
+      .json({ ok: false, error: 'Dress image not found for real try-on', code: 'dress_not_found', dressId });
   }
 
   if (!req.file?.buffer?.length) {
-    return res.status(400).json({ error: 'User image missing or empty' });
+    return res.status(400).json({ ok: false, error: 'User image missing or empty', code: 'missing_user_image' });
   }
 
   if (!dressBuffer?.length) {
-    return res.status(400).json({ error: 'Dress image is empty', dressId });
+    return res.status(400).json({ ok: false, error: 'Dress image is empty', code: 'empty_dress_image', dressId });
   }
 
   try {
@@ -201,11 +239,8 @@ app.post('/api/tryon', upload.single('userImage'), async (req, res) => {
       model: 'gpt-image-1.5',
       image: [userFile, dressFile],
       prompt:
-        'Preserve the person’s identity, face, skin tone, and body proportions. ' +
-        'Replace clothing only with the selected dress (copy its texture, embroidery, and silhouette). ' +
-        'Keep the background and lighting consistent with the original photo.',
-      output_format: 'jpeg',
-      size: 'auto',
+        'Replace the outfit in the user photo with the dress from the dress image while keeping the same person identity, body proportions, pose, and background. Match fabric, seams, silhouette. Realistic lighting and shadows. No extra logos or text.',
+      response_format: 'b64_json',
     });
 
     const base64Image = response?.data?.[0]?.b64_json;
@@ -220,16 +255,19 @@ app.post('/api/tryon', upload.single('userImage'), async (req, res) => {
       dressId,
     });
   } catch (error) {
+    const requestId = error?.response?.headers?.['x-request-id'] || error?.response?.headers?.['x-requestid'];
+    const status = error?.status || error?.response?.status;
     console.error('Error calling OpenAI image edit', {
-      status: error?.status,
+      status,
       code: error?.code,
       message: error?.message,
+      request_id: requestId,
       stack: error?.stack,
     });
     return res.status(502).json({
       ok: false,
       error: error?.message || 'Failed to generate real try-on with OpenAI',
-      code: error?.code || error?.status || 'openai_error',
+      code: error?.code || status || 'openai_error',
     });
   }
 });
