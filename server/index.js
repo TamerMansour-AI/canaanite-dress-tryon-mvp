@@ -240,7 +240,7 @@ app.post('/api/tryon', upload.single('userImage'), async (req, res) => {
       image: [userFile, dressFile],
       prompt:
         'Replace the outfit in the user photo with the dress from the dress image while keeping the same person identity, body proportions, pose, and background. Match fabric, seams, silhouette. Realistic lighting and shadows. No extra logos or text.',
-      response_format: 'b64_json',
+      output_format: 'png',
     });
 
     const base64Image = response?.data?.[0]?.b64_json;
@@ -250,8 +250,10 @@ app.post('/api/tryon', upload.single('userImage'), async (req, res) => {
     }
 
     return res.json({
+      ok: true,
       status: 'real',
-      image: `data:image/jpeg;base64,${base64Image}`,
+      image: `data:image/png;base64,${base64Image}`,
+      imageBase64: base64Image,
       dressId,
     });
   } catch (error) {
