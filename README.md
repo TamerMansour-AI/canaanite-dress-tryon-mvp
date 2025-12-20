@@ -24,6 +24,8 @@ For real try-on, set your OpenAI key in a local environment file. You can place 
 cp .env.example .env
 ```
 
+Set `OPENAI_API_KEY` in `server/.env` for local development. For deployments/CI, store `OPENAI_API_KEY` as a GitHub Secret and expose it to the server runtime.
+
 ## Running the demo
 The fastest way to launch both the frontend (Next.js) and backend (Express) together is:
 
@@ -55,11 +57,9 @@ Demo overlay mode
 - The server automatically stays in demo mode if `demoMode=true` or if `OPENAI_API_KEY` is missing.
 
 Real try-on (beta)
-- Set `demoMode=false` and configure `OPENAI_API_KEY` to call OpenAI GPT Image 1.5 with the uploaded user photo (first image) and the selected dress (second image).
+- Set `demoMode=false` **and** configure `OPENAI_API_KEY` to call OpenAI GPT Image 1.5 with the uploaded user photo (first image) and the selected dress (second image).
 - The server returns `{ status: "real", image: <dataURL>, dressId }` on success and falls back to demo behavior when API credentials are absent.
-
-## Real try-on requirements
-Real try-on uses OpenAI gpt-image-1.5; requires `OPENAI_API_KEY` in `server/.env` (local) or GitHub Secrets (deploy).
+- Real mode requires the toggle in the UI to be on and `OPENAI_API_KEY` to be present; otherwise, demo mode remains intact as a fallback.
 
 ## Building the frontend
 ```bash
