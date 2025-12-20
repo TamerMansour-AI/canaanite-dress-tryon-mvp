@@ -7,6 +7,7 @@ import multer from 'multer';
 import sharp from 'sharp';
 import OpenAI from 'openai';
 import { toFile } from 'openai/uploads';
+import mime from 'mime-types';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -26,6 +27,7 @@ const hasOpenAiKey = Boolean(process.env.OPENAI_API_KEY);
 const openaiClient = hasOpenAiKey ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 const dressesDir = path.resolve(path.join(__dirname, '..', 'app', 'public', 'assets', 'dresses'));
 const allowedDressExtensions = new Set(['.png', '.jpg', '.jpeg', '.webp']);
+const allowedImageMimes = new Set(['image/png', 'image/jpeg', 'image/webp']);
 
 app.use(cors());
 app.use(express.json());
@@ -230,10 +232,28 @@ app.post('/api/tryon', upload.single('userImage'), async (req, res) => {
   }
 
   try {
-    const userFile = await toFile(req.file.buffer, req.file.originalname || 'user.png');
-    const dressFilename =
-      (dressSrc && path.basename(dressSrc)) || (dressId ? `${dressId}.png` : 'dress.png');
-    const dressFile = await toFile(dressBuffer, dressFilename);
+    const userMime = req.file?.mimetype || 'image/png';
+    if (!allowedImageMimes.has(userMime)) {
+      return res
+        .status(400)
+        .json({ ok: false, error: 'Unsupported user image type', code: 'unsupported_input_type' });
+    }
+
+    const userName = req.file?.originalname || 'user.png';
+    const userFile = await toFile(req.file.buffer, userName, { type: userMime });
+
+    const dressFilename = resolvedDressPath
+      ? path.basename(resolvedDressPath)
+      : (dressSrc && path.basename(dressSrc)) || (dressId ? `${dressId}.png` : 'dress.png');
+
+    const dressMime = mime.lookup(dressFilename) || 'application/octet-stream';
+    if (!allowedImageMimes.has(dressMime)) {
+      return res
+        .status(400)
+        .json({ ok: false, error: 'Unsupported dress image type', code: 'unsupported_input_type' });
+    }
+
+    const dressFile = await toFile(dressBuffer, dressFilename, { type: dressMime });
 
     const response = await openaiClient.images.edit({
       model: 'gpt-image-1.5',
