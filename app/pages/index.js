@@ -9,9 +9,9 @@ export default function Home({ dresses }) {
   const [resultImage, setResultImage] = useState(null);
   const [resultDress, setResultDress] = useState(null);
   const [statusMessage, setStatusMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [uploadError, setUploadError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [demoOverlay, setDemoOverlay] = useState(true);
-  const [realMode, setRealMode] = useState(false);
 
   const apiBase = useMemo(
     () => process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000',
@@ -23,31 +23,96 @@ export default function Home({ dresses }) {
     [dresses, selectedDress]
   );
 
+  const clearResult = () => {
+    setResultImage(null);
+    setResultDress(null);
+  };
+
   const handleFileChange = (event) => {
     const file = event.target.files?.[0];
     if (!file) {
       setUserImageFile(null);
       setUserImagePreview(null);
+      setUploadError('');
       return;
     }
 
+    const allowedTypes = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp']);
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    const fileType = (file.type || '').toLowerCase();
+    const fileName = (file.name || '').toLowerCase();
+    const isHeicOrAvif =
+      fileType.includes('heic') ||
+      fileType.includes('heif') ||
+      fileType.includes('avif') ||
+      fileName.endsWith('.heic') ||
+      fileName.endsWith('.heif') ||
+      fileName.endsWith('.avif');
+
+    if (isHeicOrAvif) {
+      setUploadError('HEIC/AVIF detected. Please convert to JPG, JPEG, PNG, or WebP (max 5MB).');
+      setUserImageFile(null);
+      setUserImagePreview(null);
+      clearResult();
+      return;
+    }
+
+    if (!allowedTypes.has(fileType)) {
+      setUploadError('Unsupported file type. Please upload JPG, JPEG, PNG, or WebP.');
+      setUserImageFile(null);
+      setUserImagePreview(null);
+      clearResult();
+      return;
+    }
+
+    if (file.size > maxSize) {
+      setUploadError('File is too large. Please upload an image up to 5MB.');
+      setUserImageFile(null);
+      setUserImagePreview(null);
+      clearResult();
+      return;
+    }
+
+    setUploadError('');
+    clearResult();
     setUserImageFile(file);
     setUserImagePreview(URL.createObjectURL(file));
   };
 
+  const mapErrorCodeToMessage = (code, fallback) => {
+    const messages = {
+      missing_user_image: 'Please upload a photo to continue.',
+      unsupported_input_type: 'Please upload a JPG, JPEG, PNG, or WebP image.',
+      file_too_large: 'Images must be 5MB or smaller.',
+      invalid_dress_id: 'Selected dress could not be found.',
+      invalid_dress_path: 'Selected dress path is invalid.',
+      invalid_dress_ext: 'The selected dress file type is not supported.',
+      dress_not_found: 'We could not find that dress. Please pick another one.',
+      empty_dress_image: 'The selected dress file seems empty.',
+      openai_not_configured: 'Real try-on is not available right now. Please check the server setup.',
+      no_image: 'The try-on did not return an image. Please try again.',
+      openai_error: 'We had trouble generating your try-on. Please try again in a moment.',
+    };
+
+    return messages[code] || fallback || 'Something went wrong. Please try again.';
+  };
+
   const handleSubmit = async () => {
+    setStatusMessage('');
+    setErrorMessage('');
+
     if (!userImageFile) {
-      setStatusMessage('Please upload a photo before generating a try-on.');
+      setErrorMessage('Please upload a photo before generating a try-on.');
       return;
     }
 
     if (!selectedDressDetails) {
-      setStatusMessage('Please select a dress to continue.');
+      setErrorMessage('Please select a dress to continue.');
       return;
     }
 
     setIsSubmitting(true);
-    setStatusMessage(realMode ? 'Requesting real try-on…' : 'Preparing demo…');
+    setStatusMessage('Generating… This can take 15–60 seconds.');
 
     try {
       const formData = new FormData();
@@ -56,21 +121,36 @@ export default function Home({ dresses }) {
       if (selectedDressDetails.src) {
         formData.append('dressSrc', selectedDressDetails.src);
       }
-      formData.append('demoOverlay', demoOverlay ? 'true' : 'false');
-      formData.append('demoMode', realMode ? 'false' : 'true');
+      formData.append('demoOverlay', 'false');
+      formData.append('demoMode', 'false');
 
       const response = await fetch(`${apiBase}/api/tryon`, {
         method: 'POST',
         body: formData,
       });
 
-      if (!response.ok) {
-        throw new Error('Unable to reach the demo API');
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data?.ok === false) {
+        const friendly = mapErrorCodeToMessage(
+          data?.code,
+          data?.error ||
+            (response.status === 503
+              ? 'Real try-on is temporarily unavailable. Please try again soon.'
+              : `Request failed (${response.status}).`)
+        );
+        setErrorMessage(friendly);
+        clearResult();
+        return;
       }
 
-      const data = await response.json();
-      setResultImage(data.image || null);
-      setStatusMessage(data.status || (realMode ? 'Real mode' : 'Demo mode'));
+      if (!data.image) {
+        setErrorMessage('The try-on did not return an image. Please try again.');
+        clearResult();
+        return;
+      }
+
+      setResultImage(data.image);
+      setStatusMessage('Try-on ready. You can download the result below.');
       const dressFromResponse =
         dresses.find((dress) => dress.id === data.dressId) || selectedDressDetails;
       setResultDress({
@@ -80,7 +160,9 @@ export default function Home({ dresses }) {
         description: dressFromResponse?.description || '',
       });
     } catch (error) {
-      setStatusMessage(error.message);
+      const fallback = mapErrorCodeToMessage(null, 'Unable to reach the server. Please try again.');
+      setErrorMessage(error?.message || fallback);
+      clearResult();
     } finally {
       setIsSubmitting(false);
     }
@@ -93,9 +175,8 @@ export default function Home({ dresses }) {
           <p style={styles.badge}>Beta</p>
           <h1 style={{ margin: 0 }}>Canaanite Dress Try-On</h1>
           <p style={{ margin: '0.25rem 0 0', color: '#445', maxWidth: 720 }}>
-            Upload a photo, choose a reconstructed dress, and generate either the demo overlay or
-            a real AI try-on powered by OpenAI GPT Image 1.5 (when an API key is configured). Demo
-            mode remains available as a fallback.
+            Upload a photo and choose a reconstructed dress to generate a real AI try-on. This
+            store demo uses OpenAI GPT Image 1.5 when configured.
           </p>
         </div>
       </header>
@@ -109,9 +190,12 @@ export default function Home({ dresses }) {
               accept="image/*"
               onChange={handleFileChange}
               style={{ display: 'none' }}
+              aria-label="Upload your photo"
             />
             {userImagePreview ? 'Change photo' : 'Choose an image'}
           </label>
+          <p style={styles.helperText}>Supported JPG/JPEG/PNG/WebP, max 5MB.</p>
+          {uploadError && <p style={styles.errorText}>{uploadError}</p>}
           {userImagePreview && (
             <div style={styles.previewBox}>
               <img
@@ -164,36 +248,7 @@ export default function Home({ dresses }) {
         <div style={styles.card}>
           <h2 style={styles.cardTitle}>3. Generate</h2>
           <p style={{ margin: '0 0 0.5rem', color: '#556' }}>
-            Choose real try-on (requires API key) or stay in demo mode. In demo mode you can switch
-            between the overlay mockup and the raw echo of your upload.
-          </p>
-          <label style={styles.toggleRow}>
-            <input
-              type="checkbox"
-              checked={realMode}
-              onChange={(e) => setRealMode(e.target.checked)}
-            />
-            <span style={{ marginLeft: '0.5rem', fontWeight: 600 }}>Real try-on (beta)</span>
-            <span style={{ marginLeft: '0.35rem', color: '#556', fontSize: 14 }}>
-              {realMode
-                ? 'Calls GPT Image 1.5 with your photo + the selected dress'
-                : 'Stays in demo overlay/echo mode'}
-            </span>
-          </label>
-          <label style={styles.toggleRow}>
-            <input
-              type="checkbox"
-              checked={demoOverlay}
-              onChange={(e) => setDemoOverlay(e.target.checked)}
-              disabled={isSubmitting}
-            />
-            <span style={{ marginLeft: '0.5rem' }}>Demo overlay mode</span>
-            <span style={{ marginLeft: '0.35rem', color: '#556', fontSize: 14 }}>
-              {demoOverlay ? 'Adds a subtle dress blend + vignette' : 'Returns the original upload'}
-            </span>
-          </label>
-          <p style={{ margin: '0 0 0.5rem', fontWeight: 600, color: '#111' }}>
-            Active mode: {realMode ? 'Real try-on (beta)' : 'Demo mode'}
+            Generate a real AI try-on with your selected dress. This can take a bit of time.
           </p>
           {selectedDressDetails && (
             <div style={styles.selectedDressBox}>
@@ -201,34 +256,53 @@ export default function Home({ dresses }) {
                 <p style={{ margin: 0, fontWeight: 700 }}>Selected dress</p>
                 <p style={{ margin: '0.15rem 0 0', color: '#556' }}>{selectedDressDetails.title}</p>
               </div>
-                  <div style={styles.thumbnailWrapSmall}>
-                    <img
-                      src={selectedDressDetails.src}
-                      alt={selectedDressDetails.title}
-                      style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                    />
-                  </div>
-                </div>
+              <div style={styles.thumbnailWrapSmall}>
+                <img
+                  src={selectedDressDetails.src}
+                  alt={selectedDressDetails.title}
+                  style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                />
+              </div>
+            </div>
           )}
           <button
             onClick={handleSubmit}
-            style={styles.generateButton}
-            disabled={isSubmitting}
+            style={{
+              ...styles.generateButton,
+              opacity: isSubmitting || !userImageFile || !selectedDressDetails ? 0.75 : 1,
+              cursor: isSubmitting || !userImageFile || !selectedDressDetails ? 'not-allowed' : 'pointer',
+            }}
+            disabled={isSubmitting || !userImageFile || !selectedDressDetails}
+            aria-busy={isSubmitting}
           >
-            {isSubmitting ? 'Generating…' : realMode ? 'Generate real try-on' : 'Generate demo'}
+            <span style={styles.buttonContent}>
+              {isSubmitting && <span style={styles.spinner} aria-hidden="true" />}
+              {isSubmitting ? 'Generating…' : 'Generate try-on'}
+            </span>
           </button>
-          {statusMessage && (
-            <p style={{ marginTop: '0.75rem', fontWeight: 600 }}>{statusMessage}</p>
+          <p style={styles.helperText}>This can take 15–60 seconds.</p>
+          {statusMessage && !errorMessage && (
+            <p style={styles.statusText}>{statusMessage}</p>
           )}
+          {errorMessage && <p style={styles.errorText}>{errorMessage}</p>}
           {resultImage && (
             <div style={{ ...styles.resultGrid, marginTop: '1rem' }}>
-              <div style={styles.previewBox}>
+              <div style={styles.resultCard}>
                 <p style={{ margin: '0 0 0.35rem', fontWeight: 700 }}>Try-on result</p>
-                <img
-                  src={resultImage}
-                  alt="Demo try-on result"
-                  style={{ maxWidth: '100%', maxHeight: 240, objectFit: 'contain' }}
-                />
+                <div style={styles.previewBox}>
+                  <img
+                    src={resultImage}
+                    alt="Try-on result"
+                    style={{ maxWidth: '100%', maxHeight: 320, objectFit: 'contain' }}
+                  />
+                </div>
+                <a
+                  href={resultImage}
+                  download="try-on.png"
+                  style={styles.downloadButton}
+                >
+                  Download result
+                </a>
               </div>
               {resultDress?.src && (
                 <div style={styles.previewBox}>
@@ -250,6 +324,16 @@ export default function Home({ dresses }) {
           )}
         </div>
       </section>
+      <style jsx global>{`
+        @keyframes spin {
+          from {
+            transform: rotate(0deg);
+          }
+          to {
+            transform: rotate(360deg);
+          }
+        }
+      `}</style>
     </main>
   );
 }
@@ -309,6 +393,21 @@ const styles = {
     background: '#f8fafc',
     textAlign: 'center',
   },
+  helperText: {
+    margin: '0.35rem 0 0',
+    color: '#64748b',
+    fontSize: 14,
+  },
+  errorText: {
+    margin: '0.5rem 0 0',
+    color: '#b91c1c',
+    fontWeight: 600,
+  },
+  statusText: {
+    margin: '0.75rem 0 0',
+    color: '#0f172a',
+    fontWeight: 600,
+  },
   dressGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
@@ -351,6 +450,22 @@ const styles = {
     fontWeight: 700,
     cursor: 'pointer',
     width: '100%',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buttonContent: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  spinner: {
+    width: 16,
+    height: 16,
+    border: '2px solid rgba(255,255,255,0.6)',
+    borderTopColor: '#fff',
+    borderRadius: '50%',
+    animation: 'spin 1s linear infinite',
   },
   selectedDressBox: {
     display: 'flex',
@@ -367,15 +482,22 @@ const styles = {
     gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
     gap: '0.75rem',
   },
-  toggleRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.25rem',
-    padding: '0.5rem 0.65rem',
-    borderRadius: 8,
+  resultCard: {
+    background: '#fff',
     border: '1px solid #e2e8f0',
-    background: '#f8fafc',
-    marginBottom: '0.75rem',
+    borderRadius: 12,
+    padding: '0.75rem',
+    boxShadow: '0 10px 25px rgba(15,23,42,0.08)',
+  },
+  downloadButton: {
+    display: 'inline-block',
+    marginTop: '0.75rem',
+    padding: '0.65rem 0.9rem',
+    background: '#0f172a',
+    color: '#fff',
+    borderRadius: 10,
+    textDecoration: 'none',
+    fontWeight: 700,
   },
 };
 

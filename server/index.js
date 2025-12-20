@@ -27,7 +27,8 @@ const hasOpenAiKey = Boolean(process.env.OPENAI_API_KEY);
 const openaiClient = hasOpenAiKey ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 const dressesDir = path.resolve(path.join(__dirname, '..', 'app', 'public', 'assets', 'dresses'));
 const allowedDressExtensions = new Set(['.png', '.jpg', '.jpeg', '.webp']);
-const allowedImageMimes = new Set(['image/png', 'image/jpeg', 'image/webp']);
+const allowedImageMimes = new Set(['image/png', 'image/jpeg', 'image/jpg', 'image/webp']);
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
 app.use(cors());
 app.use(express.json());
@@ -45,16 +46,30 @@ app.post('/api/tryon', upload.single('userImage'), async (req, res) => {
     return res.status(400).json({ ok: false, error: 'No user image provided', code: 'missing_user_image' });
   }
 
+  const userMime = (req.file?.mimetype || '').toLowerCase();
+  if (!allowedImageMimes.has(userMime)) {
+    return res
+      .status(400)
+      .json({ ok: false, error: 'Unsupported user image type. Please upload JPG, PNG, or WebP.', code: 'unsupported_input_type' });
+  }
+
+  if (req.file.size > MAX_FILE_SIZE) {
+    return res
+      .status(400)
+      .json({ ok: false, error: 'User image exceeds the 5MB size limit.', code: 'file_too_large' });
+  }
+
   const dressId = req.body?.dressId;
   const dressSrc = req.body?.dressSrc;
   const demoMode = req.body?.demoMode === 'true';
   const shouldComposite = req.body?.demoOverlay !== 'false';
-  const isDemoMode = demoMode || !openaiClient;
+  const isDemoMode = demoMode;
 
   const echoUpload = (status) => {
     const imageBase64 = req.file.buffer.toString('base64');
     const dataUrl = `data:${req.file.mimetype};base64,${imageBase64}`;
     return res.json({
+      ok: true,
       status,
       image: dataUrl,
       dressId,
@@ -183,6 +198,7 @@ app.post('/api/tryon', upload.single('userImage'), async (req, res) => {
       const dataUrl = `data:image/jpeg;base64,${outputBuffer.toString('base64')}`;
 
       return res.json({
+        ok: true,
         status: !openaiClient ? 'Demo overlay mode (API key missing)' : 'Demo overlay mode',
         image: dataUrl,
         dressId,
@@ -191,13 +207,22 @@ app.post('/api/tryon', upload.single('userImage'), async (req, res) => {
     } catch (error) {
       console.error('Error compositing demo overlay', error);
       return res.status(200).json({
+        ok: true,
         status: 'Demo fallback (echo)',
         image: `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`,
         dressId,
         dressSrc,
-        error: 'Overlay failed, returning original upload.',
+        warning: 'Overlay failed, returning original upload.',
       });
     }
+  }
+
+  if (!openaiClient) {
+    return res.status(503).json({
+      ok: false,
+      error: 'Real try-on is unavailable: missing OpenAI API key.',
+      code: 'openai_not_configured',
+    });
   }
 
   const resolvedById = findDressPathById();
@@ -232,13 +257,6 @@ app.post('/api/tryon', upload.single('userImage'), async (req, res) => {
   }
 
   try {
-    const userMime = req.file?.mimetype || 'image/png';
-    if (!allowedImageMimes.has(userMime)) {
-      return res
-        .status(400)
-        .json({ ok: false, error: 'Unsupported user image type', code: 'unsupported_input_type' });
-    }
-
     const userName = req.file?.originalname || 'user.png';
     const userFile = await toFile(req.file.buffer, userName, { type: userMime });
 
@@ -286,10 +304,11 @@ app.post('/api/tryon', upload.single('userImage'), async (req, res) => {
       request_id: requestId,
       stack: error?.stack,
     });
-    return res.status(502).json({
+    return res.status(status || 502).json({
       ok: false,
       error: error?.message || 'Failed to generate real try-on with OpenAI',
       code: error?.code || status || 'openai_error',
+      requestId,
     });
   }
 });
